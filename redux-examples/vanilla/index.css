@@ -1,0 +1,13 @@
+body {
+  background: #eceeec;
+  color: #555f55;
+}
+.bar {
+  display: inline-block;
+  border: solid 1px #fff;
+  background: #339933;
+  color: #eeffee;
+  border-radius: 4px;
+  text-align: center;
+  font-weight: bold;
+}
