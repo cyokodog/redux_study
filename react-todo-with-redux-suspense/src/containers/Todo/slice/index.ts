@@ -1,5 +1,8 @@
-import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
+import { createSlice, PayloadAction, createAsyncThunk, CaseReducer } from '@reduxjs/toolkit';
 import { Task, makeTask } from '../../../models/todo/task/task';
+import { todoRepo } from '../../../repositories/todo';
+import { AppDispatch } from '../../../store';
+// import { loadTasks } from './loadTasks';
 
 type State = {
   tasks: Task[];
@@ -7,6 +10,46 @@ type State = {
 
 const initialState: State = {
   tasks: [],
+};
+
+export const loadTasks = createAsyncThunk<
+  // Return type of the payload creator
+  { tasks: Task[] },
+  // First argument to the payload creator
+  // { dummy: number },
+  void,
+  // Types for ThunkAPI
+  {
+    // extra: {
+    //   jwt: string;
+    // };
+    rejectValue: {
+      status: number;
+      message: string;
+    };
+  }
+>('todo/loadTasks', async (_args, thunkApi) => {
+  try {
+    // throw new Error('err');
+    const tasks = await todoRepo.fetchTasks();
+    return { tasks };
+  } catch (e) {
+    return thunkApi.rejectWithValue({
+      status: -1,
+      message: 'タスクデータの取得に失敗しました',
+    });
+  }
+});
+
+// エラーを考慮しなければ、シンプルに以下のようにも書ける
+// export const loadTasks = createAsyncThunk('todo/loadTasks', async (_args, _thunkApi) => {
+//   // console.log('_args', args.dummy);
+//   const tasks = await todoRepo.fetchTasks();
+//   return { tasks };
+// });
+
+const deleteTask: CaseReducer<State, PayloadAction<Task>> = (state, action) => {
+  state.tasks = state.tasks.filter((t) => t.id !== action.payload.id);
 };
 
 export const todoSlice = createSlice({
@@ -47,11 +90,34 @@ export const todoSlice = createSlice({
         task.done = !task.done;
       }
     },
-    deleteTask(state: State, action: PayloadAction<Task>) {
-      state.tasks = state.tasks.filter((t) => t.id !== action.payload.id);
+    // deleteTask(state: State, action: PayloadAction<Task>) {
+    //   state.tasks = state.tasks.filter((t) => t.id !== action.payload.id);
+    // },
+    deleteTask, // 切り出してるパターン
+
+    setTasks(state: State, action: PayloadAction<{ tasks: Task[] }>) {
+      state.tasks = action.payload.tasks;
     },
-    setTasks(state: State, action: PayloadAction<Task[]>) {
-      state.tasks = action.payload;
-    },
+  },
+  extraReducers: (builder) => {
+    builder.addCase(loadTasks.fulfilled, (state, action) => {
+      state.tasks = action.payload.tasks;
+      // 以下のように reducer を呼ぶこともできる
+      // const _action = todoSlice.actions.setTasks(action.payload.tasks);
+      // todoSlice.caseReducers.setTasks(state, _action);
+    });
+
+    builder.addCase(loadTasks.pending, (state, action) => {
+      console.log('pending', action.meta.requestId);
+    });
+
+    builder.addCase(loadTasks.rejected, (state, action) => {
+      console.log('rejected');
+      if (action.payload) {
+        const title = `[${action.payload.message}] エラーの原因を調べる`;
+        const newTask = makeTask(title);
+        state.tasks = [newTask];
+      }
+    });
   },
 });
